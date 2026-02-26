@@ -1,0 +1,86 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        configuration: [Debug, Release]
+        platform: [Any CPU, x64, x86]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore ILSpy.Mcp.sln
+
+    - name: Build solution
+      run: dotnet build ILSpy.Mcp.sln --configuration ${{ matrix.configuration }} --no-restore
+
+    - name: Run tests
+      run: dotnet test Tests/ILSpy.Mcp.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
+
+    - name: Publish main project
+      if: matrix.configuration == 'Release' && matrix.platform == 'Any CPU'
+      run: dotnet publish ILSpy.Mcp.csproj --configuration Release --output ./publish --self-contained false
+
+    - name: Upload build artifacts
+      if: matrix.configuration == 'Release' && matrix.platform == 'Any CPU'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ILSpy-Mcp-Windows-${{ matrix.configuration }}
+        path: ./publish/**
+        retention-days: 30
+
+  build-cross-platform:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        configuration: [Release]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore ILSpy.Mcp.sln
+
+    - name: Build solution
+      run: dotnet build ILSpy.Mcp.sln --configuration ${{ matrix.configuration }} --no-restore
+
+    - name: Run tests
+      run: dotnet test Tests/ILSpy.Mcp.Tests.csproj --configuration ${{ matrix.configuration }} --no-build --verbosity normal
+
+    - name: Publish main project
+      run: dotnet publish ILSpy.Mcp.csproj --configuration Release --output ./publish --self-contained false
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ILSpy-Mcp-${{ matrix.os }}-${{ matrix.configuration }}
+        path: ./publish/**
+        retention-days: 30
